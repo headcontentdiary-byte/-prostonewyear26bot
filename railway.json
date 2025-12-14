@@ -9,3 +9,45 @@
     "restartPolicyMaxRetries": 10
   }
 }
+```
+
+**6.** Нажмите **"Commit changes"** (зелёная кнопка внизу)
+
+---
+
+## ❌ ОШИБКА 2: Нет переменных окружения!
+
+Внизу скриншота вижу: **"0 Variables"**
+
+Это значит **НЕ ДОБАВЛЕНЫ** переменные! Без них бот не работает!
+
+### **ДОБАВЛЯЕМ:**
+
+**1.** В Railway → вкладка **"Variables"** (там где вы сейчас)
+
+**2.** Нажмите **"+ New Variable"** или **"Add Variable"**
+
+---
+
+### **ПЕРЕМЕННАЯ 1: BOT_TOKEN**
+
+**3.** **Variable Reference:** `BOT_TOKEN`
+
+**4.** **Value:** 
+```
+8335898265:AAGBmK8rOxU6CPn1L1OAniZLkJRqc1gohus
+```
+
+**5.** Нажмите **"Add"** или галочку ✅
+
+---
+
+### **ПЕРЕМЕННАЯ 2: GOOGLE_SHEET_ID**
+
+**6.** **+ New Variable**
+
+**7.** **Variable Reference:** `GOOGLE_SHEET_ID`
+
+**8.** **Value:**
+```
+1Ey42isjhGdD3WXkSIP1OkCiXhEslwFHk9Qv2JqUX2WE
