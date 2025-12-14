@@ -1,238 +1,206 @@
-import os
 import telebot
-from datetime import datetime
+from telebot import types
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import os
 import json
+from datetime import datetime
 
-# Токен бота
-BOT_TOKEN = os.environ.get('BOT_TOKEN')
+# Инициализация бота
+BOT_TOKEN = os.getenv('BOT_TOKEN')
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Хранилище данных пользователей
+# Подключение к Google Sheets
+SHEET_ID = os.getenv('GOOGLE_SHEET_ID')
+CREDENTIALS_JSON = os.getenv('GOOGLE_CREDENTIALS')
+
+scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+credentials_dict = json.loads(CREDENTIALS_JSON)
+creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
+client = gspread.authorize(creds)
+sheet = client.open_by_key(SHEET_ID).sheet1
+
+# Словарь для хранения состояния пользователей
 user_data = {}
 
-# Подключение к Google Sheets
-def connect_google_sheets():
-    try:
-        creds_json = os.environ.get('GOOGLE_CREDENTIALS')
-        creds_dict = json.loads(creds_json)
-        
-        scope = ['https://spreadsheets.google.com/feeds',
-                 'https://www.googleapis.com/auth/drive']
-        
-        credentials = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        client = gspread.authorize(credentials)
-        
-        sheet_id = os.environ.get('GOOGLE_SHEET_ID')
-        sheet = client.open_by_key(sheet_id).sheet1
-        
-        return sheet
-    except Exception as e:
-        print(f"Ошибка подключения к Google Sheets: {e}")
-        return None
-
-# Сохранение в таблицу
-def save_to_sheet(user_id, username, platform, story_link):
-    try:
-        sheet = connect_google_sheets()
-        if sheet:
-            timestamp = datetime.now().strftime("%d.%m.%Y %H:%M")
-            sheet.append_row([str(user_id), username, platform, story_link, timestamp, ''])
-            return True
-    except Exception as e:
-        print(f"Ошибка сохранения: {e}")
-    return False
-
-# /start
+# Команда /start
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
-    user_data[user_id] = {}
+    user_data[user_id] = {'step': 0}
     
-    welcome = """🎉 Привет! Участвуете в новогоднем розыгрыше от Prosto?
-
-🎁 Мы разыграем Secret Box с нашим уникальным мерчом!
-
-📸 УСЛОВИЯ:
-1. Сделать скриншот новогоднего сертификата от Prosto
-2. Опубликовать его в Stories (VK или Telegram)
-3. Отметить в пуликации наш аккаунт @ProstoMeditation в телеграм и @prostomeditationapp в вк
-4. Отправить нам скриншот сторис, ссылку на него и свой ник в телеграме, чтобы мы могли с вами связаться
-
-⏰ У розыгрыша три волны, мы подведем итоги 20 декабря, 30 декабря и 5 января!
-
-Начнем регистрацию? 👇"""
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    btn1 = types.KeyboardButton('🎁 Участвую')
+    btn2 = types.KeyboardButton('📋 Правила')
+    markup.add(btn1, btn2)
     
-    markup = telebot.types.InlineKeyboardMarkup()
-    markup.add(telebot.types.InlineKeyboardButton("✅ Да, участвую!", callback_data="start_reg"))
-    markup.add(telebot.types.InlineKeyboardButton("ℹ️ Правила", callback_data="rules"))
-    
-    bot.send_message(message.chat.id, welcome, reply_markup=markup)
+    bot.send_message(
+        message.chat.id,
+        "🎄 Привет! Добро пожаловать в розыгрыш Prosto!\n\n"
+        "Разыгрываем 3 годовые подписки на Prosto!\n\n"
+        "Выберите действие:",
+        reply_markup=markup
+    )
 
-# Кнопки
-@bot.callback_query_handler(func=lambda call: True)
-def callback_handler(call):
-    user_id = call.from_user.id
-    
-    if call.data == "start_reg":
-        bot.send_message(call.message.chat.id, 
-                        """1️⃣ Шаг 1 из 4
-
-Напишите ваш Telegram username
-
-Формат: @username
-(или напишите как с вами связаться)""")
-        bot.register_next_step_handler(call.message, get_username)
-    
-    elif call.data == "rules":
-        rules = """📋 ПОДРОБНЫЕ ПРАВИЛА
-
-1. Скриншот новогоднего сертификата, который пришел на вашу почту
-2. Скриншот вашей Stories в Telegram или ВКонтакте с упоминанием нашего аккаунта
-
-❌ Мы не сможем учесть в розыгыше:
-- Закрытые профили
-- Боты и фейки
-- Stories без упоминания
-
-/start - начать сначала
-/status - проверить статус"""
+# Обработчик кнопок
+@bot.message_handler(func=lambda message: message.text in ['🎁 Участвую', '📋 Правила'])
+def handle_buttons(message):
+    if message.text == '📋 Правила':
+        bot.send_message(
+            message.chat.id,
+            "📋 *Правила розыгрыша:*\n\n"
+            "1️⃣ Опубликуйте Story в Telegram или VK с упоминанием @prostoapp\n"
+            "2️⃣ Нажмите '🎁 Участвую' и следуйте инструкциям\n"
+            "3️⃣ Отправьте ссылку на Story и скриншот\n\n"
+            "🗓 Итоги: 26 декабря 2025\n"
+            "🎁 Призы: 3 годовые подписки Prosto",
+            parse_mode='Markdown'
+        )
+    elif message.text == '🎁 Участвую':
+        user_id = message.from_user.id
+        user_data[user_id] = {'step': 1}
         
-        markup = telebot.types.InlineKeyboardMarkup()
-        markup.add(telebot.types.InlineKeyboardButton("⬅️ Назад", callback_data="start_reg"))
-        bot.send_message(call.message.chat.id, rules, reply_markup=markup)
+        msg = bot.send_message(
+            message.chat.id,
+            "Отлично! Для участия мне нужна информация.\n\n"
+            "📝 Шаг 1/4: Введите ваш Telegram username (без @):"
+        )
+        bot.register_next_step_handler(msg, get_username)
 
-# Шаг 1: Username
+# Шаг 1: Получение username
 def get_username(message):
     user_id = message.from_user.id
-    user_data[user_id]['username'] = message.text
+    username = message.text.strip().replace('@', '')
     
-    markup = telebot.types.InlineKeyboardMarkup()
-    markup.add(telebot.types.InlineKeyboardButton("📱 Telegram", callback_data="platform_tg"))
-    markup.add(telebot.types.InlineKeyboardButton("🔵 ВКонтакте", callback_data="platform_vk"))
+    user_data[user_id]['username'] = username
+    user_data[user_id]['step'] = 2
     
-    bot.send_message(message.chat.id, 
-                    """2️⃣ Шаг 2 из 4
+    markup = types.InlineKeyboardMarkup()
+    btn1 = types.InlineKeyboardButton('📱 Telegram', callback_data='platform_telegram')
+    btn2 = types.InlineKeyboardButton('🔵 VK', callback_data='platform_vk')
+    markup.add(btn1, btn2)
+    
+    bot.send_message(
+        message.chat.id,
+        f"✅ Username: @{username}\n\n"
+        "📝 Шаг 2/4: Где вы опубликовали Story?",
+        reply_markup=markup
+    )
 
-Где вы опубликовали Story?""", 
-                    reply_markup=markup)
-
-# Шаг 2: Платформа
+# Обработчик inline-кнопок (выбор платформы)
 @bot.callback_query_handler(func=lambda call: call.data.startswith('platform_'))
-def platform_handler(call):
+def handle_platform(call):
     user_id = call.from_user.id
-    platform = "Telegram" if call.data == "platform_tg" else "ВКонтакте"
+    platform = 'Telegram' if call.data == 'platform_telegram' else 'VK'
+    
     user_data[user_id]['platform'] = platform
+    user_data[user_id]['step'] = 3
     
-    bot.send_message(call.message.chat.id, 
-                    f"""3️⃣ Шаг 3 из 4
-
-Отправьте ссылку на Story в {platform}
-
-Как получить:
-- Откройте свой Story
-- Нажмите ⋯ (три точки)
-- Копировать ссылку
-- Вставьте сюда""")
+    bot.edit_message_text(
+        f"✅ Платформа: {platform}",
+        call.message.chat.id,
+        call.message.message_id
+    )
     
-    bot.register_next_step_handler(call.message, get_story_link)
+    msg = bot.send_message(
+        call.message.chat.id,
+        "📝 Шаг 3/4: Отправьте ссылку на вашу Story:"
+    )
+    bot.register_next_step_handler(msg, get_story_link)
 
-# Шаг 3: Ссылка
+# Шаг 3: Получение ссылки
 def get_story_link(message):
     user_id = message.from_user.id
-    user_data[user_id]['story_link'] = message.text
+    story_link = message.text.strip()
     
-    bot.send_message(message.chat.id, 
-                    """4️⃣ Шаг 4 из 4
-
-Отправьте скриншот вашего Story
-
-📸 Пришлите фото сюда""")
+    user_data[user_id]['story_link'] = story_link
+    user_data[user_id]['step'] = 4
     
-    bot.register_next_step_handler(message, get_screenshot)
+    msg = bot.send_message(
+        message.chat.id,
+        "✅ Ссылка получена!\n\n"
+        "📝 Шаг 4/4: Отправьте скриншот Story (фото):"
+    )
+    bot.register_next_step_handler(msg, get_screenshot)
 
-# Шаг 4: Скриншот и сохранение
+# Шаг 4: Получение скриншота
 def get_screenshot(message):
     user_id = message.from_user.id
     
-    if message.content_type != 'photo':
-        bot.send_message(message.chat.id, "❌ Пожалуйста, отправьте фото!")
-        bot.register_next_step_handler(message, get_screenshot)
+    if not message.photo:
+        msg = bot.send_message(
+            message.chat.id,
+            "❌ Пожалуйста, отправьте фото (скриншот Story):"
+        )
+        bot.register_next_step_handler(msg, get_screenshot)
         return
     
-    username = user_data[user_id]['username']
-    platform = user_data[user_id]['platform']
-    story_link = user_data[user_id]['story_link']
+    # Сохраняем данные в Google Sheets
+    data = user_data[user_id]
+    date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
-    success = save_to_sheet(user_id, username, platform, story_link)
+    row = [
+        str(user_id),
+        data['username'],
+        data['platform'],
+        data['story_link'],
+        date,
+        '⏳'  # Статус проверки
+    ]
     
-    if success:
-        confirmation = f"""✅ Отлично! Вы зарегистрированы!
-
-📊 ВАШИ ДАННЫЕ:
-Username: {username}
-Платформа: {platform}
-Ссылка: {story_link}
-
-Спасибо!
-
-/status - статус
-/help - помощь"""
-        
-        bot.send_message(message.chat.id, confirmation)
-    else:
-        bot.send_message(message.chat.id, 
-                        "❌ Ошибка сохранения. Попробуйте: /start")
+    sheet.append_row(row)
     
-    user_data.pop(user_id, None)
+    # Очищаем данные пользователя
+    del user_data[user_id]
+    
+    bot.send_message(
+        message.chat.id,
+        "🎉 *Вы зарегистрированы!*\n\n"
+        "Ваша заявка отправлена на модерацию.\n"
+        "Результаты розыгрыша: 26 декабря 2025\n\n"
+        "Удачи! 🍀",
+        parse_mode='Markdown'
+    )
 
-# /status
+# Команда /status
 @bot.message_handler(commands=['status'])
-def status(message):
-    bot.send_message(message.chat.id, 
-                    """📊 ПРОВЕРКА СТАТУСА
-
-Заявка на проверке.
-
-✅ - одобрено
-⏳ - проверяется
-❌ - отклонено
-
-""")
-
-# /help
-@bot.message_handler(commands=['help'])
-def help_cmd(message):
-    help_text = """❓ ПОМОЩЬ
-
-Команды:
-/start - регистрация
-/status - статус
-/help - справка
-
-Вопросы? @prosto_support"""
+def check_status(message):
+    user_id = str(message.from_user.id)
     
-    bot.send_message(message.chat.id, help_text)
+    # Ищем пользователя в таблице
+    try:
+        cell = sheet.find(user_id)
+        row = sheet.row_values(cell.row)
+        status = row[5] if len(row) > 5 else '⏳'
+        
+        bot.send_message(
+            message.chat.id,
+            f"📊 *Ваш статус:*\n\n"
+            f"Username: @{row[1]}\n"
+            f"Платформа: {row[2]}\n"
+            f"Статус: {status}",
+            parse_mode='Markdown'
+        )
+    except:
+        bot.send_message(
+            message.chat.id,
+            "❌ Вы еще не зарегистрированы!\n\n"
+            "Нажмите '🎁 Участвую' для регистрации."
+        )
 
-# Запуск
+# Команда /help
+@bot.message_handler(commands=['help'])
+def help_command(message):
+    bot.send_message(
+        message.chat.id,
+        "ℹ️ *Доступные команды:*\n\n"
+        "/start - Начать\n"
+        "/status - Проверить статус заявки\n"
+        "/help - Справка",
+        parse_mode='Markdown'
+    )
+
+# Запуск бота
 if __name__ == '__main__':
-    print("✅ Бот запущен!")
+    print("Бот запущен!")
     bot.infinity_polling()
-```
-
-**5.** Внизу нажмите зелёную кнопку **"Commit new file"**
-
----
-
-#### **ФАЙЛ 2: requirements.txt**
-
-**1.** Снова нажмите **"Add file"** → **"Create new file"**
-
-**2.** Имя файла: `requirements.txt`
-
-**3.** Скопируйте:
-```
-pyTelegramBotAPI==4.14.0
-gspread==5.12.0
-oauth2client==4.1.3
