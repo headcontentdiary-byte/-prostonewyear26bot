@@ -1,0 +1,124 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "startCommand": "python bot.py",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}
+```
+
+**4.** **Commit new file**
+
+---
+
+**ГОТОВО!** Теперь в репозитории 4 файла:
+- README.md
+- bot.py
+- requirements.txt
+- railway.json
+
+---
+
+## **ЭТАП 2: НАСТРАИВАЕМ GOOGLE SHEETS**
+
+### Создаём таблицу:
+
+**1.** Откройте [sheets.google.com](https://sheets.google.com)
+
+**2.** Нажмите **"+ Пустой файл"** (большая зелёная кнопка)
+
+**3.** Название (вверху слева): `Розыгрыш Prosto`
+
+**4.** В **первую строку** (A1-F1) напишите:
+
+| A | B | C | D | E | F |
+|---|---|---|---|---|---|
+| User ID | Username | Платформа | Ссылка на Story | Дата | Проверено |
+
+**5.** Скопируйте **ID таблицы** из URL браузера:
+
+`https://docs.google.com/spreadsheets/d/`**`1ABC_XYZ_этотекст`**`/edit`
+
+Сохраните этот **1ABC_XYZ_этотекст** - это ваш SHEET_ID! ✅
+
+---
+
+### Создаём сервисный аккаунт Google:
+
+**1.** Откройте [console.cloud.google.com](https://console.cloud.google.com)
+
+**2.** Вверху слева **выпадающее меню** → **"New Project"**
+
+**3.** Название проекта: `Prosto Bot`
+
+**4.** **Create**
+
+**5.** Подождите 10 секунд, пока создастся
+
+**6.** Вверху убедитесь, что выбран проект **"Prosto Bot"**
+
+---
+
+**7.** Слева меню (☰ три полоски) → **"APIs & Services"** → **"Library"**
+
+**8.** В поиске напишите: `Google Sheets API`
+
+**9.** Нажмите на **Google Sheets API**
+
+**10.** Нажмите синюю кнопку **"Enable"**
+
+**11.** Подождите 5 секунд
+
+---
+
+**12.** Снова в поиске: `Google Drive API`
+
+**13.** **Google Drive API** → **Enable**
+
+---
+
+**14.** Слева меню → **"APIs & Services"** → **"Credentials"**
+
+**15.** Вверху нажмите **"+ Create Credentials"**
+
+**16.** Выберите **"Service Account"**
+
+**17.** Заполните:
+   - **Service account name:** `prosto-bot`
+   - **Service account ID:** (автоматически заполнится)
+
+**18.** **Create and Continue**
+
+**19.** **Role:** Select a role → **Editor**
+
+**20.** **Continue** → **Done**
+
+---
+
+**21.** Вы увидите список. Найдите созданный **prosto-bot@...**
+
+**22.** Нажмите на него (на email)
+
+**23.** Вверху вкладка **"Keys"**
+
+**24.** **Add Key** → **Create new key**
+
+**25.** Тип: **JSON**
+
+**26.** **Create**
+
+**27.** **Скачается файл** `prosto-bot-xxxxx.json` ← ОЧЕНЬ ВАЖНЫЙ! Сохраните!
+
+---
+
+### Даём доступ к таблице:
+
+**1.** Откройте скачанный `prosto-bot-xxxxx.json` **блокнотом**
+
+**2.** Найдите строку:
+```
+"client_email": "prostonewyearbot@newyear2026.iam.gserviceaccount.com"
