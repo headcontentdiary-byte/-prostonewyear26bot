@@ -141,7 +141,7 @@ def check_result(message):
         print(f"   🔄 Принудительное обновление данных из Google Sheets...")
         
         # Пересоздаем подключение к листу для получения свежих данных
-        spreadsheet = gc.open_by_key(SHEET_ID)
+        spreadsheet = client.open_by_key(GOOGLE_SHEET_ID)
         sheet = spreadsheet.sheet1
         
         print(f"   📊 Получаем свежие данные из таблицы...")
