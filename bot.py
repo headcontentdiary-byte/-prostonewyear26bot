@@ -792,4 +792,57 @@ if __name__ == '__main__':
         print(f"   Столбцов: {sheet.col_count}")
         print(f"   Строк: {sheet.row_count}")
     print("=" * 60)
-    bot.infinity_polling()
+    
+    # 🔧 ИСПРАВЛЕНИЕ ОШИБКИ 409: Удаляем webhook перед polling
+    print("\n🔧 Удаляем webhook (если настроен)...")
+    try:
+        bot.remove_webhook()
+        print("   ✅ Webhook удалён")
+    except Exception as e:
+        print(f"   ⚠️ Не удалось удалить webhook: {e}")
+    
+    # Даём время Telegram API обработать удаление
+    import time
+    time.sleep(3)
+    
+    print("🔄 Запускаем polling...\n")
+    
+    # Запуск с обработкой ошибки 409
+    retry_count = 0
+    max_retries = 5
+    
+    while retry_count < max_retries:
+        try:
+            bot.infinity_polling(none_stop=True, timeout=60, long_polling_timeout=60)
+            break  # Если успешно - выходим из цикла
+        except Exception as e:
+            error_text = str(e)
+            
+            # Если ошибка 409 (конфликт) - пробуем исправить
+            if "409" in error_text or "Conflict" in error_text:
+                retry_count += 1
+                print(f"\n⚠️ Ошибка 409 (попытка {retry_count}/{max_retries})")
+                print(f"   Подробности: {error_text}")
+                
+                if retry_count < max_retries:
+                    wait_time = 5 * retry_count  # Увеличиваем время ожидания
+                    print(f"   Ждём {wait_time} секунд и пробуем снова...")
+                    time.sleep(wait_time)
+                    
+                    # Пробуем снова удалить webhook
+                    try:
+                        bot.remove_webhook()
+                        print("   ✅ Webhook удалён повторно")
+                        time.sleep(2)
+                    except:
+                        pass
+                else:
+                    print("\n❌ Превышено количество попыток!")
+                    print("💡 Подождите 2-3 минуты и перезапустите бот")
+                    break
+            else:
+                # Другая ошибка - выводим и прерываем
+                print(f"\n❌ Критическая ошибка: {e}")
+                import traceback
+                traceback.print_exc()
+                break
