@@ -230,7 +230,7 @@ def check_result(message):
                 print(f"      user_status == '' ? {user_status == ''}")
                 print(f"      winner_cell == '🏆' ? {winner_cell == '🏆'}")
                 print(f"=" * 60)
-                break
+                # НЕ делаем break — ищем последнюю запись пользователя
         
         if not user_found:
             print(f"   ❌ Не найден в таблице")
