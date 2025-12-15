@@ -23,6 +23,8 @@ client = gspread.authorize(creds)
 try:
     sheet = client.open_by_key(GOOGLE_SHEET_ID).sheet1
     print(f"✅ СТАРТ: Подключились к Google Sheets: {sheet.title}")
+    print(f"   📊 Всего столбцов в таблице: {sheet.col_count}")
+    print(f"   📊 Всего строк в таблице: {sheet.row_count}")
 except Exception as e:
     print(f"❌ СТАРТ: ОШИБКА подключения: {e}")
     sheet = None
@@ -41,17 +43,20 @@ def main_menu():
 # Команда /start
 @bot.message_handler(commands=['start'])
 def start(message):
-    print(f"📱 /start от User ID: {message.from_user.id}")
+    user_id = message.from_user.id
+    print(f"\n📱 /start от User ID: {user_id}")
+    print(f"   Username: @{message.from_user.username if message.from_user.username else 'нет username'}")
+    
     bot.send_message(
         message.chat.id,
-        "🎄 <b>Добро пожаловать в новогодний розыгрыш от Prosto!</b>\n\n"
-        "Каждый купленный сертификат — это билетик в нашу новогоднюю лотерею! "
-        "Мы собрали 30 праздничных Secret Box с лимитированным мерчем.\n\n"
-        "📅 <b>У розыгрыша три волны:</b>\n"
+        "🎄 <b>Добро пожаловать в новогоднюю лотерею от Prosto!</b>\n\n"
+        "Каждый купленный сертификат — это ваш билетик."
+        "Мы собрали 39 праздничных Secret Box с лимитированным мерчем и подарками от партнеров.\n\n"
+        "📅 <b>У лотереи будет три волны:</b>\n"
         "— 20 декабря\n"
         "— 30 декабря\n"
         "— 5 января\n\n"
-        "В каждой волне мы рандомно выберем по 10 победителей.\n\n"
+        "В каждой мы рандомно выберем победителей.\n\n"
         "<b>Выберите действие 👇</b>",
         parse_mode='HTML',
         reply_markup=main_menu()
@@ -64,7 +69,7 @@ def participate(message):
     print(f"\n🎁 УЧАСТВУЮ нажал User ID: {user_id}")
     
     user_states[user_id] = 'awaiting_username'
-    print(f"   Установлен статус: awaiting_username")
+    print(f"   ✅ Установлен статус: awaiting_username")
     
     bot.send_message(
         message.chat.id,
@@ -76,27 +81,30 @@ def participate(message):
 # Кнопка "Правила"
 @bot.message_handler(func=lambda message: message.text == '📋 Правила')
 def rules(message):
-    print(f"📋 ПРАВИЛА запросил User ID: {message.from_user.id}")
+    user_id = message.from_user.id
+    print(f"📋 ПРАВИЛА запросил User ID: {user_id}")
+    
     bot.send_message(
         message.chat.id,
-        "<b>⭐️ Как участвовать в розыгрыше:</b>\n"
+        "<b>⭐️ Как участвовать в лотерее:</b>\n"
         "<b>Всё Prosto:</b>\n\n"
         "1️⃣ Купите любой подарочный сертификат по новогодней акции\n"
-        "👉 https://wow.prostoapp.ru/new-year\n\n"
+        "👉 https://wow.prostoapp.ru/happynewyear25\n\n"
         "2️⃣ Сделайте скриншот письма с сертификатом\n\n"
         "3️⃣ Выложите этот скриншот сторис с упоминанием нашего аккаунта:\n"
         "   • @ProstoMeditation (для Telegram)\n"
         "   • @prostomeditationapp (для VK)\n\n"
         "4️⃣ Зарегистрируйтесь в боте (кнопка «🎁 Участвую»)\n\n"
-        "5️⃣ Ждите результатов!\n\n"
+        "5️⃣ Ждите результатов! Проверить ваш статус можно будет в этом боте.\n\n"
         "<b>Что внутри Secret Box?</b>\n"
         "Это сюрприз! Но вот, что мы приготовили:\n\n"
         "<b>— Анатомические маски для сна от Safer.zone и Prosto Meditation</b>\n"
-        "С memory foam, которая помнит контуры вашего лица.\n\n"
         "<b>— Ароматизированные свечи</b>\n"
-        "Для утренней практики — с сочными цитрусами, для вечерней — с нотами кожи, амбры и пачули.\n\n"
         "<b>— Лонгсливы и футболки Prosto</b>\n"
-        "Ткань такая приятная, что снимать не захочется.\n\n"
+        "<b>— Наборы уходовой косметики The Act</b>\n"
+        "<b>— Паровой выпрямитель Timfato</b>\n"
+        "<b>— Термальные щёточки Timfato</b>\n"
+       
         "<b>Когда подведение итогов?</b>\n"
         "Мы объявим победителей:\n"
         "• 20 декабря\n"
@@ -124,19 +132,33 @@ def check_result(message):
         return
     
     try:
+        print(f"   📊 Получаем данные из таблицы...")
         all_records = sheet.get_all_values()
-        print(f"   Получено {len(all_records)} строк из таблицы")
+        print(f"   ✅ Получено {len(all_records)} строк из таблицы")
         
         user_found = False
         user_status = None
         is_winner = False
+        winner_fullname = None
+        shipping_status = None
+        tracking_number = None
+        user_row_index = None
         
-        for row in all_records[1:]:
+        # Ищем пользователя в таблице
+        for idx, row in enumerate(all_records[1:], start=2):  # Пропускаем заголовок
             if len(row) > 0 and row[0] == user_id:
                 user_found = True
-                user_status = row[5] if len(row) > 5 else ''
-                is_winner = (row[6] == '🏆') if len(row) > 6 else False
-                print(f"   ✅ Найден! Статус: {user_status}, Победитель: {is_winner}")
+                user_row_index = idx
+                user_status = row[5] if len(row) > 5 else ''  # Столбец F (Проверено)
+                is_winner = (row[6] == '🏆') if len(row) > 6 else False  # Столбец G (Победитель)
+                winner_fullname = row[7] if len(row) > 7 else ''  # Столбец H (ФИО)
+                shipping_status = row[11] if len(row) > 11 else ''  # Столбец L (Статус отправки)
+                tracking_number = row[12] if len(row) > 12 else ''  # Столбец M (Трек)
+                
+                print(f"   ✅ Найден! Строка {user_row_index}")
+                print(f"      Статус: {user_status}")
+                print(f"      Победитель: {is_winner}")
+                print(f"      ФИО заполнено: {bool(winner_fullname)}")
                 break
         
         if not user_found:
@@ -144,12 +166,52 @@ def check_result(message):
             bot.send_message(
                 message.chat.id,
                 "❗️ <b>Вы ещё не зарегистрированы!</b>\n\n"
-                "Нажмите <b>🎁 Участвую</b> чтобы принять участие в розыгрыше.",
+                "Нажмите <b>🎁 Участвую</b> чтобы принять участие в лотерее.",
                 parse_mode='HTML'
             )
             return
         
-        if user_status == '⏳':
+        # ЛОГИКА ДЛЯ ПОБЕДИТЕЛЕЙ
+        if is_winner:
+            print(f"   🏆 Пользователь - ПОБЕДИТЕЛЬ!")
+            
+            # Если ФИО не заполнено - запускаем сбор данных
+            if not winner_fullname:
+                print(f"   📝 ФИО не заполнено, запускаем сбор данных")
+                
+                # Сохраняем номер строки для обновления
+                user_data[int(user_id)] = {'row_index': user_row_index}
+                user_states[int(user_id)] = 'winner_awaiting_fullname'
+                
+                bot.send_message(
+                    message.chat.id,
+                    "<b>🎉 ПОЗДРАВЛЯЕМ!</b>\n\n"
+                    "<b>Вы выиграли Secret Box!</b> 🎁\n\n"
+                    "Чтобы мы могли отправить приз, заполните данные:\n\n"
+                    "📝 <b>Шаг 1/4: Введите ваше ФИО</b>\n"
+                    "Например: Иванова Мария Петровна",
+                    parse_mode='HTML'
+                )
+            else:
+                # ФИО уже заполнено - показываем статус
+                print(f"   📦 ФИО заполнено, показываем статус отправки")
+                
+                status_text = shipping_status if shipping_status else "В обработке"
+                track_text = tracking_number if tracking_number else "Ожидает отправки"
+                
+                bot.send_message(
+                    message.chat.id,
+                    "<b>🎉 ПОЗДРАВЛЯЕМ!</b>\n\n"
+                    "<b>Вы выиграли Secret Box!</b> 🎁\n\n"
+                    f"✨ <b>Статус отправки вашего подарка:</b> {status_text}\n"
+                    f"📮 <b>Трек номер:</b> {track_text}\n\n"
+                    "Спасибо за участие! ✨",
+                    parse_mode='HTML'
+                )
+        
+        # ЛОГИКА ДЛЯ НЕ-ПОБЕДИТЕЛЕЙ
+        elif user_status == '⏳':
+            print(f"   ⏳ Заявка на модерации")
             bot.send_message(
                 message.chat.id,
                 "<b>⏳ Ваша заявка на модерации</b>\n\n"
@@ -161,6 +223,7 @@ def check_result(message):
                 parse_mode='HTML'
             )
         elif user_status == '❌':
+            print(f"   ❌ Заявка отклонена")
             bot.send_message(
                 message.chat.id,
                 "<b>❌ Ваша заявка отклонена</b>\n\n"
@@ -173,25 +236,17 @@ def check_result(message):
                 parse_mode='HTML'
             )
         elif user_status == '✅':
+            print(f"   ✅ Заявка одобрена, но не победитель")
             today = date.today()
             first_wave = date(2025, 12, 20)
             second_wave = date(2025, 12, 30)
             third_wave = date(2026, 1, 5)
             
-            if is_winner:
-                bot.send_message(
-                    message.chat.id,
-                    "<b>🎉 ПОЗДРАВЛЯЕМ!</b>\n\n"
-                    "<b>Вы выиграли Secret Box!</b> 🎁\n\n"
-                    "Мы свяжемся с вами в ближайшее время для отправки приза.\n\n"
-                    "Спасибо за участие! ✨",
-                    parse_mode='HTML'
-                )
-            elif today < first_wave:
+            if today < first_wave:
                 bot.send_message(
                     message.chat.id,
                     "<b>✅ Вы зарегистрированы!</b>\n\n"
-                    "Розыгрыш ещё не окончен!\n\n"
+                    "Лотерея ещё не окончена!\n\n"
                     "<b>Проверьте результаты:</b>\n"
                     "📅 20 декабря\n"
                     "📅 30 декабря\n"
@@ -204,7 +259,7 @@ def check_result(message):
                     message.chat.id,
                     "<b>✅ Вы зарегистрированы!</b>\n\n"
                     "Первая волна завершена, но вы не вошли в число победителей.\n\n"
-                    "<b>Следующие розыгрыши:</b>\n"
+                    "<b>Следующие лотереи:</b>\n"
                     "📅 30 декабря\n"
                     "📅 5 января\n\n"
                     "Удачи! 🍀",
@@ -215,7 +270,7 @@ def check_result(message):
                     message.chat.id,
                     "<b>✅ Вы зарегистрированы!</b>\n\n"
                     "Две волны завершены, но вы не вошли в число победителей.\n\n"
-                    "<b>Последний розыгрыш:</b>\n"
+                    "<b>Последняя лотерея:</b>\n"
                     "📅 5 января\n\n"
                     "Удачи! 🍀",
                     parse_mode='HTML'
@@ -223,13 +278,14 @@ def check_result(message):
             else:
                 bot.send_message(
                     message.chat.id,
-                    "<b>✅ Вы участвовали в розыгрыше</b>\n\n"
+                    "<b>✅ Вы участвовали в лотерее</b>\n\n"
                     "К сожалению, вы не вошли в число победителей.\n\n"
                     "Спасибо за участие! ❤️",
                     parse_mode='HTML'
                 )
+                
     except Exception as e:
-        print(f"   ❌ ОШИБКА: {e}")
+        print(f"   ❌ ОШИБКА при проверке результата: {e}")
         import traceback
         traceback.print_exc()
         bot.send_message(
@@ -237,13 +293,192 @@ def check_result(message):
             "❗️ Произошла ошибка при проверке. Попробуйте позже."
         )
 
+# ==================== СБОР ДАННЫХ ПОБЕДИТЕЛЯ ====================
+
+# Шаг 1: Получение ФИО победителя
+@bot.message_handler(func=lambda message: user_states.get(message.from_user.id) == 'winner_awaiting_fullname')
+def handle_winner_fullname(message):
+    user_id = message.from_user.id
+    fullname = message.text.strip()
+    
+    print(f"\n📝 ПОБЕДИТЕЛЬ - ШАГ 1 (ФИО) от User ID: {user_id}")
+    print(f"   Получено ФИО: {fullname}")
+    
+    if len(fullname) < 5:
+        print(f"   ❌ ФИО слишком короткое")
+        bot.send_message(
+            message.chat.id,
+            "❗️ Пожалуйста, введите полное ФИО (минимум 5 символов)\n\nПопробуйте ещё раз:"
+        )
+        return
+    
+    # Сохраняем ФИО
+    if user_id not in user_data:
+        user_data[user_id] = {}
+    user_data[user_id]['fullname'] = fullname
+    user_states[user_id] = 'winner_awaiting_address'
+    
+    print(f"   ✅ ФИО сохранено, переход к адресу")
+    
+    bot.send_message(
+        message.chat.id,
+        f"<b>✅ ФИО:</b> {fullname}\n\n"
+        "<b>📍 Шаг 2/4: Введите ваш адрес с индексом</b>\n\n"
+        "Например:\n"
+        "123456, Москва, ул. Ленина, д. 10, кв. 5",
+        parse_mode='HTML'
+    )
+
+# Шаг 2: Получение адреса победителя
+@bot.message_handler(func=lambda message: user_states.get(message.from_user.id) == 'winner_awaiting_address')
+def handle_winner_address(message):
+    user_id = message.from_user.id
+    address = message.text.strip()
+    
+    print(f"\n📍 ПОБЕДИТЕЛЬ - ШАГ 2 (АДРЕС) от User ID: {user_id}")
+    print(f"   Получен адрес: {address}")
+    
+    if len(address) < 10:
+        print(f"   ❌ Адрес слишком короткий")
+        bot.send_message(
+            message.chat.id,
+            "❗️ Пожалуйста, введите полный адрес с индексом\n\nПопробуйте ещё раз:"
+        )
+        return
+    
+    # Сохраняем адрес
+    user_data[user_id]['address'] = address
+    user_states[user_id] = 'winner_awaiting_phone'
+    
+    print(f"   ✅ Адрес сохранён, переход к телефону")
+    
+    bot.send_message(
+        message.chat.id,
+        f"<b>✅ ФИО:</b> {user_data[user_id]['fullname']}\n"
+        f"<b>✅ Адрес получен!</b>\n\n"
+        "<b>📞 Шаг 3/4: Введите ваш телефон</b>\n\n"
+        "Например: +79991234567",
+        parse_mode='HTML'
+    )
+
+# Шаг 3: Получение телефона победителя
+@bot.message_handler(func=lambda message: user_states.get(message.from_user.id) == 'winner_awaiting_phone')
+def handle_winner_phone(message):
+    user_id = message.from_user.id
+    phone = message.text.strip()
+    
+    print(f"\n📞 ПОБЕДИТЕЛЬ - ШАГ 3 (ТЕЛЕФОН) от User ID: {user_id}")
+    print(f"   Получен телефон: {phone}")
+    
+    if len(phone) < 10:
+        print(f"   ❌ Телефон слишком короткий")
+        bot.send_message(
+            message.chat.id,
+            "❗️ Пожалуйста, введите корректный номер телефона\n\nПопробуйте ещё раз:"
+        )
+        return
+    
+    # Сохраняем телефон
+    user_data[user_id]['phone'] = phone
+    user_states[user_id] = 'winner_awaiting_email'
+    
+    print(f"   ✅ Телефон сохранён, переход к email")
+    
+    bot.send_message(
+        message.chat.id,
+        f"<b>✅ ФИО:</b> {user_data[user_id]['fullname']}\n"
+        f"<b>✅ Адрес получен!</b>\n"
+        f"<b>✅ Телефон:</b> {phone}\n\n"
+        "<b>📧 Шаг 4/4: Введите ваш Email</b>\n\n"
+        "Например: ivanova@example.com",
+        parse_mode='HTML'
+    )
+
+# Шаг 4: Получение email победителя и запись в таблицу
+@bot.message_handler(func=lambda message: user_states.get(message.from_user.id) == 'winner_awaiting_email')
+def handle_winner_email(message):
+    user_id = message.from_user.id
+    email = message.text.strip()
+    
+    print(f"\n📧 ПОБЕДИТЕЛЬ - ШАГ 4 (EMAIL) от User ID: {user_id}")
+    print(f"   Получен email: {email}")
+    
+    if '@' not in email or '.' not in email:
+        print(f"   ❌ Email некорректный")
+        bot.send_message(
+            message.chat.id,
+            "❗️ Пожалуйста, введите корректный email\n\nПопробуйте ещё раз:"
+        )
+        return
+    
+    # Сохраняем email
+    user_data[user_id]['email'] = email
+    
+    print(f"   ✅ Email сохранён, записываем в Google Sheets")
+    
+    # Записываем данные победителя в Google Sheets
+    if sheet is None:
+        print(f"   ❌ ОШИБКА: Sheet = None!")
+        bot.send_message(
+            message.chat.id,
+            "❗️ Ошибка подключения к базе данных. Свяжитесь с поддержкой."
+        )
+        return
+    
+    try:
+        row_index = user_data[user_id]['row_index']
+        print(f"   📊 Обновляем строку {row_index} (столбцы H-K)")
+        
+        # Обновляем столбцы H, I, J, K (ФИО, Адрес, Телефон, Email)
+        winner_data = [
+            user_data[user_id]['fullname'],  # H: ФИО
+            user_data[user_id]['address'],    # I: Адрес
+            user_data[user_id]['phone'],      # J: Телефон
+            email                             # K: Email
+        ]
+        
+        sheet.update(f'H{row_index}:K{row_index}', [winner_data])
+        
+        print(f"   🎉 УСПЕШНО записаны данные победителя в строку {row_index}!")
+        print(f"=" * 60)
+        
+        bot.send_message(
+            message.chat.id,
+            "<b>🎉 Спасибо!</b>\n\n"
+            "Ваши данные успешно сохранены.\n\n"
+            "Мы свяжемся с вами в ближайшее время для отправки приза! 🎁\n\n"
+            "Следить за статусом отправки можно через кнопку\n"
+            "<b>«🏆 Проверить результат»</b>",
+            parse_mode='HTML',
+            reply_markup=main_menu()
+        )
+        
+        # Очищаем состояние
+        user_states.pop(user_id, None)
+        user_data.pop(user_id, None)
+        print(f"   ✅ Состояние очищено")
+        
+    except Exception as e:
+        print(f"   ❌ ОШИБКА ПРИ ЗАПИСИ ДАННЫХ ПОБЕДИТЕЛЯ: {e}")
+        print(f"   Тип ошибки: {type(e).__name__}")
+        
+        import traceback
+        traceback.print_exc()
+        
+        bot.send_message(
+            message.chat.id,
+            "❗️ Произошла ошибка при сохранении. Попробуйте ещё раз позже."
+        )
+
+# ==================== РЕГИСТРАЦИЯ УЧАСТНИКА ====================
+
 # Шаг 1: Получение username
 @bot.message_handler(func=lambda message: user_states.get(message.from_user.id) == 'awaiting_username')
 def handle_username(message):
     user_id = message.from_user.id
     username = message.text.strip()
     
-    print(f"\n📝 ШАГ 1 (username) от User ID: {user_id}")
+    print(f"\n📝 РЕГИСТРАЦИЯ - ШАГ 1 (username) от User ID: {user_id}")
     print(f"   Получен username: {username}")
     
     if not username.startswith('@'):
@@ -279,7 +514,7 @@ def handle_platform(call):
     user_id = call.from_user.id
     platform = 'Telegram' if call.data == 'platform_telegram' else 'VK'
     
-    print(f"\n📱 ШАГ 2 (платформа) от User ID: {user_id}")
+    print(f"\n📱 РЕГИСТРАЦИЯ - ШАГ 2 (платформа) от User ID: {user_id}")
     print(f"   Выбрана платформа: {platform}")
     
     user_data[user_id]['platform'] = platform
@@ -303,7 +538,7 @@ def handle_platform(call):
 def handle_story_link(message):
     user_id = message.from_user.id
     
-    print(f"\n🔗 ШАГ 3 (ссылка) от User ID: {user_id}")
+    print(f"\n🔗 РЕГИСТРАЦИЯ - ШАГ 3 (ссылка) от User ID: {user_id}")
     
     # Игнорируем кнопки меню
     if message.text in ['🏆 Проверить результат', '🎁 Участвую', '📋 Правила']:
@@ -328,8 +563,8 @@ def handle_story_link(message):
         print(f"   ❌ Sheet = None, пропускаем проверку дублей")
     else:
         try:
-            print(f"   Проверяем дубли...")
-            existing_links = sheet.col_values(4)
+            print(f"   🔍 Проверяем дубли...")
+            existing_links = sheet.col_values(4)  # Столбец D (Ссылка на Story)
             print(f"   В базе {len(existing_links)} ссылок")
             
             if story_link in existing_links:
@@ -360,12 +595,12 @@ def handle_story_link(message):
         parse_mode='HTML'
     )
 
-# Шаг 4: Получение скриншота
+# Шаг 4: Получение скриншота и запись в Google Sheets
 @bot.message_handler(content_types=['photo'], func=lambda message: user_states.get(message.from_user.id) == 'awaiting_screenshot')
 def handle_screenshot(message):
     user_id = message.from_user.id
     
-    print(f"\n📸 ШАГ 4 (скриншот) от User ID: {user_id}")
+    print(f"\n📸 РЕГИСТРАЦИЯ - ШАГ 4 (скриншот) от User ID: {user_id}")
     print(f"=" * 60)
     
     # Получаем данные пользователя
@@ -389,21 +624,22 @@ def handle_screenshot(message):
     
     # Сохраняем в Google Sheets
     try:
-        print(f"   Подключаемся к Google Sheets...")
+        print(f"   📊 Подключаемся к Google Sheets...")
         sheet_title = sheet.title
         print(f"   ✅ Подключились к листу: {sheet_title}")
         
+        # Данные для столбцов A-G
         row_data = [
-            str(user_id),
-            username,
-            platform,
-            story_link,
-            registration_date,
-            '⏳',
-            ''
+            str(user_id),           # A: User ID
+            username,               # B: Username
+            platform,               # C: Платформа
+            story_link,             # D: Ссылка на Story
+            registration_date,      # E: Дата регистрации
+            '⏳',                    # F: Проверено (⏳/✅/❌)
+            ''                      # G: Победитель (🏆 или пусто)
         ]
         
-        print(f"   Данные для записи: {row_data}")
+        print(f"   Данные для записи (A-G): {row_data}")
         
         # ✅ ИСПРАВЛЕНИЕ: Явно указываем диапазон A-G
         next_row = len(sheet.col_values(1)) + 1
@@ -413,6 +649,8 @@ def handle_screenshot(message):
         sheet.update(f'A{next_row}:G{next_row}', [row_data])
         
         print(f"   🎉 ЗАПИСЬ УСПЕШНА В СТРОКУ {next_row}!")
+        print(f"   ✅ Данные записаны в столбцы A-G")
+        print(f"   ✅ Столбцы H-M остались пустыми (для победителей)")
         print(f"=" * 60)
         
         bot.send_message(
@@ -450,7 +688,7 @@ def handle_screenshot(message):
 @bot.message_handler(func=lambda message: user_states.get(message.from_user.id) == 'awaiting_screenshot')
 def handle_wrong_screenshot(message):
     user_id = message.from_user.id
-    print(f"\n❌ ШАГ 4 - НЕ ФОТО от User ID: {user_id}")
+    print(f"\n❌ РЕГИСТРАЦИЯ - ШАГ 4: НЕ ФОТО от User ID: {user_id}")
     print(f"   Получен тип: {message.content_type}")
     
     bot.send_message(
@@ -462,5 +700,10 @@ def handle_wrong_screenshot(message):
 # Запуск бота
 if __name__ == '__main__':
     print("🚀 БОТ ЗАПУЩЕН!")
-    print(f"Подключение к таблице: {sheet is not None}")
+    print(f"   Подключение к таблице: {sheet is not None}")
+    if sheet:
+        print(f"   Название листа: {sheet.title}")
+        print(f"   Столбцов: {sheet.col_count}")
+        print(f"   Строк: {sheet.row_count}")
+    print("=" * 60)
     bot.infinity_polling()
