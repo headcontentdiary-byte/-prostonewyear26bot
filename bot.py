@@ -119,7 +119,7 @@ def rules(message):
 # Кнопка "Проверить результат"
 @bot.message_handler(func=lambda message: message.text == '🏆 Проверить результат')
 def check_result(message):
-    global sheet  # Добавляем global чтобы обновить объект
+    global sheet
     
     user_id = str(message.from_user.id)
     print(f"\n🏆 ПРОВЕРКА РЕЗУЛЬТАТА от User ID: {user_id}")
@@ -133,30 +133,13 @@ def check_result(message):
         return
     
     try:
-        # 🔄 ПРИНУДИТЕЛЬНО ОБНОВЛЯЕМ ДАННЫЕ ИЗ ТАБЛИЦЫ
         print(f"   🔄 Принудительное обновление данных из Google Sheets...")
-        
-        # Пересоздаем подключение к листу для получения свежих данных
         spreadsheet = client.open_by_key(GOOGLE_SHEET_ID)
         sheet = spreadsheet.sheet1
         
         print(f"   📊 Получаем свежие данные из таблицы...")
         all_records = sheet.get_all_values()
         print(f"   ✅ Получено {len(all_records)} строк из таблицы")
-        
-        # 🔍 ОТЛАДКА: Показываем заголовок таблицы
-        if len(all_records) > 0:
-            header = all_records[0]
-            print(f"\n   📋 ЗАГОЛОВОК ТАБЛИЦЫ ({len(header)} столбцов):")
-            for i, col in enumerate(header):
-                print(f"      [{i}] = '{col}'")
-        
-        # 🔍 ОТЛАДКА: Показываем первую строку данных
-        if len(all_records) > 1:
-            first_data = all_records[1]
-            print(f"\n   📋 ПЕРВАЯ СТРОКА ДАННЫХ ({len(first_data)} столбцов):")
-            for i, col in enumerate(first_data):
-                print(f"      [{i}] = '{col}' (len={len(col)})")
         
         # Собираем ВСЕ записи пользователя
         user_entries = []
@@ -179,63 +162,8 @@ def check_result(message):
                 print(f"   📋 Найдена запись #{len(user_entries)}: строка {idx}, статус='{entry['status']}', победитель='{entry['winner']}'")
         
         print(f"   📊 Всего записей пользователя: {len(user_entries)}")
-                
-                # 🔍 ПОДРОБНЫЕ ЛОГИ для отладки
-                print(f"\n   ✅ НАЙДЕН! Строка {user_row_index}")
-                print(f"   📊 Длина строки: {len(row)} столбцов")
-                print(f"   📊 User ID (A): {row[0]}")
-                print(f"   📊 Username (B): {row[1] if len(row) > 1 else 'пусто'}")
-                print(f"   📊 Платформа (C): {row[2] if len(row) > 2 else 'пусто'}")
-                print(f"   📊 Ссылка (D): {row[3] if len(row) > 3 else 'пусто'}")
-                print(f"   📊 Дата (E): {row[4] if len(row) > 4 else 'пусто'}")
-                
-                # СТАТУС - с детальной информацией
-                status_cell = row[5] if len(row) > 5 else ''
-                print(f"   📊 Проверено (F): '{status_cell}' (len={len(status_cell)})")
-                if status_cell:
-                    print(f"       HEX: {status_cell.encode('utf-8').hex()}")
-                    print(f"       Первый символ: ord={ord(status_cell[0]) if status_cell else 'N/A'}")
-                
-                # ПОБЕДИТЕЛЬ - с детальной информацией
-                winner_cell_raw = row[6] if len(row) > 6 else ''
-                print(f"   📊 Победитель (G): '{winner_cell_raw}' (len={len(winner_cell_raw)})")
-                if winner_cell_raw:
-                    print(f"       HEX: {winner_cell_raw.encode('utf-8').hex()}")
-                    print(f"       Первый символ: ord={ord(winner_cell_raw[0]) if winner_cell_raw else 'N/A'}")
-                
-                # Читаем статус с очисткой от пробелов
-                user_status = row[5].strip() if len(row) > 5 else ''
-                winner_cell = row[6].strip() if len(row) > 6 else ''
-                is_winner = (winner_cell == '🏆')
-                
-                winner_fullname = row[7].strip() if len(row) > 7 else ''
-                shipping_status = row[11].strip() if len(row) > 11 else ''
-                tracking_number = row[12].strip() if len(row) > 12 else ''
-                
-                print(f"\n   🎯 ПОСЛЕ .strip():")
-                print(f"      user_status = '{user_status}' (len={len(user_status)})")
-                if user_status:
-                    print(f"      user_status HEX: {user_status.encode('utf-8').hex()}")
-                print(f"      winner_cell = '{winner_cell}' (len={len(winner_cell)})")
-                if winner_cell:
-                    print(f"      winner_cell HEX: {winner_cell.encode('utf-8').hex()}")
-                
-                print(f"\n   🎯 РАСПОЗНАНО:")
-                print(f"      Статус: '{user_status}'")
-                print(f"      Победитель: '{winner_cell}'")
-                print(f"      is_winner: {is_winner}")
-                print(f"      ФИО заполнено: {bool(winner_fullname)}")
-                
-                # СРАВНЕНИЕ с ожидаемыми значениями
-                print(f"\n   🔍 ПРОВЕРКА СОВПАДЕНИЯ:")
-                print(f"      user_status == '⏳' ? {user_status == '⏳'}")
-                print(f"      user_status == '✅' ? {user_status == '✅'}")
-                print(f"      user_status == '❌' ? {user_status == '❌'}")
-                print(f"      user_status == '' ? {user_status == ''}")
-                print(f"      winner_cell == '🏆' ? {winner_cell == '🏆'}")
-                print(f"=" * 60)
-                # НЕ делаем break — ищем последнюю запись пользователя
         
+        # Пользователь не найден
         if not user_entries:
             print(f"   ❌ Не найден в таблице")
             bot.send_message(
@@ -245,8 +173,6 @@ def check_result(message):
                 parse_mode='HTML'
             )
             return
-        
-        # 🔍 АНАЛИЗИРУЕМ ВСЕ ЗАПИСИ ПОЛЬЗОВАТЕЛЯ
         
         # Проверяем, есть ли победитель среди записей
         winner_entry = None
@@ -260,7 +186,6 @@ def check_result(message):
             print(f"   🏆 Пользователь ПОБЕДИТЕЛЬ! (строка {winner_entry['row_index']})")
             
             if not winner_entry['fullname']:
-                # ФИО не заполнено - запускаем сбор данных
                 user_data[int(user_id)] = {'row_index': winner_entry['row_index']}
                 user_states[int(user_id)] = 'winner_awaiting_fullname'
                 
@@ -279,7 +204,6 @@ def check_result(message):
                     parse_mode='HTML'
                 )
             else:
-                # ФИО заполнено - показываем статус отправки
                 status_text = winner_entry['shipping_status'] if winner_entry['shipping_status'] else "В обработке"
                 track_text = winner_entry['tracking_number'] if winner_entry['tracking_number'] else "Ожидает отправки"
                 
@@ -295,11 +219,8 @@ def check_result(message):
             return
         
         # 2️⃣ НЕТ ПОБЕДИТЕЛЯ — ПОКАЗЫВАЕМ СТАТУС ВСЕХ ЗАЯВОК
-        
-        # Формируем сообщение со статусами
         status_lines = []
         for i, entry in enumerate(user_entries, 1):
-            # Определяем иконку статуса
             if entry['status'] == '✅':
                 status_icon = "✅ Одобрено"
             elif entry['status'] == '❌':
@@ -309,14 +230,11 @@ def check_result(message):
             else:
                 status_icon = "⏳ На модерации"
             
-            # Сокращаем ссылку для читаемости
             short_link = entry['link'][:30] + "..." if len(entry['link']) > 30 else entry['link']
-            
             status_lines.append(f"{i}. {status_icon}\n   🔗 {short_link}")
         
         status_text = "\n\n".join(status_lines)
         
-        # Проверяем даты розыгрыша
         today = date.today()
         giveaway_end = date(2026, 1, 5)
         
