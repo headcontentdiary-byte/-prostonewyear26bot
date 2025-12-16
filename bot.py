@@ -234,7 +234,19 @@ def check_result(message):
             status_lines.append(f"{i}. {status_icon}\n   🔗 {short_link}")
         
         status_text = "\n\n".join(status_lines)
+        # Проверяем, есть ли отклонённые заявки
+        has_rejected = any(entry['status'] == '❌' for entry in user_entries)
         
+        rejected_text = ""
+        if has_rejected:
+            rejected_text = (
+                "\n\n⚠️ <b>Почему заявка могла быть отклонена?</b>\n"
+                "• Мы не нашли вашу сторис, проверьте ссылку\n"
+                "• Вы забыли отметить наш аккаунт\n"
+                "• У вас закрытый профиль и сторис просто не видно\n"
+                "• Что-то не так со скриншотом\n\n"
+                "Исправьте ошибки и зарегистрируйтесь снова!"
+            )
         today = date.today()
         giveaway_end = date(2026, 1, 5)
         
@@ -242,7 +254,8 @@ def check_result(message):
             bot.send_message(
                 message.chat.id,
                 f"<b>📋 Ваши заявки ({len(user_entries)} шт.):</b>\n\n"
-                f"{status_text}\n\n"
+                f"{status_text}"
+                f"{rejected_text}\n\n"
                 "━━━━━━━━━━━━━━━\n"
                 "<b>📅 Даты розыгрыша:</b>\n"
                 "• 20 декабря\n"
@@ -255,7 +268,8 @@ def check_result(message):
             bot.send_message(
                 message.chat.id,
                 f"<b>📋 Ваши заявки ({len(user_entries)} шт.):</b>\n\n"
-                f"{status_text}\n\n"
+                f"{status_text}"
+                f"{rejected_text}\n\n"
                 "━━━━━━━━━━━━━━━\n"
                 "Розыгрыш завершён. Спасибо за участие! 💙",
                 parse_mode='HTML'
