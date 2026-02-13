@@ -195,6 +195,7 @@ def handle_screenshot(message):
 def check_result(message):
     user_id = str(message.from_user.id)
     try:
+        # Принудительно обновляем данные из таблицы
         all_records = sheet.get_all_values()
         user_entries = [row for row in all_records[1:] if row[0] == user_id]
         
@@ -202,24 +203,50 @@ def check_result(message):
             bot.send_message(message.chat.id, "Вы еще не зарегистрированы. Нажмите «🎁 Участвую».")
             return
 
-        is_winner = any(len(row) > 6 and row[6] == '🏆' for row in user_entries)
+        # Ищем запись, где в столбце G (индекс 6) стоит кубок
+        winner_entry = next((row for row in user_entries if len(row) > 6 and row[6] == '🏆'), None)
         has_rejected = any(len(row) > 5 and row[5] == '❌' for row in user_entries)
         is_pending = any(len(row) > 5 and row[5] == '⏳' for row in user_entries)
 
-        if is_winner:
-            bot.send_message(message.chat.id, "🎉 <b>ПОЗДРАВЛЯЕМ! Вы выиграли!</b>\n\nНаш менеджер свяжется с вами в ближайшее время (через Telegram, который вы оставили при регистрации) для уточнения деталей.", parse_mode='HTML')
+        if winner_entry:
+            # Берем название приза из столбца H (индекс 7)
+            prize_name = winner_entry[7].strip() if len(winner_entry) > 7 and winner_entry[7].strip() else "приз"
+            
+            # Кнопка для заполнения формы
+            markup = types.InlineKeyboardMarkup()
+            markup.add(types.InlineKeyboardButton("🎁 Заполнить данные для доставки", url="https://forms.gle/JRkuo6oa3M9LvKUVA"))
+            markup.add(types.InlineKeyboardButton("📜 Список всех победителей", url="https://wow.prostoapp.ru/fb14_winners"))
+
+            bot.send_message(
+                message.chat.id, 
+                f"<b>🎉 ПОЗДРАВЛЯЕМ! Вы выиграли: {prize_name}!</b>\n\n"
+                "Чтобы мы могли отправить вам подарок, пожалуйста, заполните форму подтверждения по кнопке ниже. "
+                "Это необходимо, чтобы ваш приз нашел дорогу к вам! 💘\n\n"
+                "Наш менеджер также может связаться с вами через Telegram для уточнения деталей.", 
+                parse_mode='HTML',
+                reply_markup=markup
+            )
         elif has_rejected:
             bot.send_message(message.chat.id, "⚠️ <b>Ваша заявка отклонена.</b>\n\nПричины могут быть в закрытом профиле, отсутствии отметки или неверном скриншоте. Пожалуйста, исправьте ошибки и зарегистрируйтесь снова.", parse_mode='HTML')
         elif is_pending:
             bot.send_message(message.chat.id, "Ваша заявка <b>на модерации</b> ⏳\n\nМы проверяем вашу сторис. Обычно это занимает не больше 5 часов. Пожалуйста, подождите.", parse_mode='HTML')
         else:
+            # Если еще не выиграл, даем ссылку на лендинг, чтобы человек мог посмотреть, кто уже победил
+            markup = types.InlineKeyboardMarkup()
+            markup.add(types.InlineKeyboardButton("Посмотреть список победителей", url="https://wow.prostoapp.ru/fb14_winners"))
+            
             today = date.today()
             if today <= date(2026, 2, 15):
-                bot.send_message(message.chat.id, "Спасибо за участие! Розыгрыши проходят 13, 14 и 15 февраля. Следите за обновлениями! 💘")
+                bot.send_message(
+                    message.chat.id, 
+                    "Спасибо за участие! Розыгрыши проходят каждый день 13, 14 и 15 февраля. Возможно, ваше имя появится в списке уже завтра! 💘",
+                    reply_markup=markup
+                )
             else:
-                bot.send_message(message.chat.id, "Акция завершена. Спасибо за участие! К сожалению, в этот раз удача улыбнулась другому участнику. Но впереди еще много интересного! ✨")
+                bot.send_message(message.chat.id, "Акция завершена. Спасибо за участие! К сожалению, в этот раз удача улыбнулась другому участнику. Но впереди еще много интересного! ✨", reply_markup=markup)
                 
     except Exception as e:
+        print(f"Ошибка в check_result: {e}")
         bot.send_message(message.chat.id, "Ошибка при проверке. Попробуйте позже.")
 
 # ==================== ЗАПУСК ====================
