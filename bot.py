@@ -92,30 +92,6 @@ def rules(message):
         parse_mode='HTML'
     )
 
-@bot.message_handler(func=lambda message: message.text == '🎁 Участвую')
-def participate(message):
-    user_id = message.from_user.id
-    
-    if not check_subscription(user_id):
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("✨ Подписаться на Prosto", url=f"https://t.me/{CHANNEL_ID.replace('@', '')}"))
-        bot.send_message(
-            message.chat.id,
-            f"❌ <b>Для участия нужно быть подписанным на наш канал {CHANNEL_ID}</b>\n\n"
-            "Это обязательное условие конкурса. Подпишитесь и нажмите «🎁 Участвую» снова!",
-            parse_mode='HTML',
-            reply_markup=markup
-        )
-        return
-
-    user_states[user_id] = 'awaiting_username'
-    bot.send_message(
-        message.chat.id,
-        "📝 <b>Шаг 1/4: Укажите ваш телеграм</b>\n\n"
-        "Введите ваш username (например: @ivanova):",
-        parse_mode='HTML'
-    )
-
 # ==================== ПРОЦЕСС РЕГИСТРАЦИИ ====================
 
 @bot.message_handler(func=lambda message: message.text == '🎁 Участвую')
