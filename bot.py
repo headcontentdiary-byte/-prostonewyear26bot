@@ -118,76 +118,26 @@ def participate(message):
 
 # ==================== ПРОЦЕСС РЕГИСТРАЦИИ ====================
 
-@bot.message_handler(func=lambda message: user_states.get(message.from_user.id) == 'awaiting_username')
-def handle_username(message):
-    user_id = message.from_user.id
-    username = message.text.strip()
-    
-    if not username.startswith('@'):
-        bot.send_message(message.chat.id, "❗️ Username должен начинаться с @\nПопробуйте ещё раз:")
-        return
-    
-    user_data[user_id] = {'username': username}
-    user_states[user_id] = 'awaiting_platform'
-    
+@bot.message_handler(func=lambda message: message.text == '🎁 Участвую')
+def registration_closed(message):
     markup = types.InlineKeyboardMarkup()
-    markup.add(
-        types.InlineKeyboardButton('Telegram', callback_data='platform_telegram'),
-        types.InlineKeyboardButton('VK', callback_data='platform_vk')
+    # Кнопка для перехода в канал
+    markup.add(types.InlineKeyboardButton("Присоединиться к Prosto", url="https://t.me/ProstoMeditation"))
+    
+    text = (
+        "<b>Розыгрыш уже закончился! 🎁</b>\n\n"
+        "Регистрация участников завершена, но это не повод расстраиваться. "
+        "В нашем канале мы регулярно делимся полезными практиками, анонсируем новые акции "
+        "и создаем самое бережное комьюнити.\n\n"
+        "Подписывайтесь, там всё самое крутое: @ProstoMeditation"
     )
-    bot.send_message(message.chat.id, "📱 <b>Шаг 2/4: Выберите соцсеть</b>, где вы выложили сторис:", 
-                     parse_mode='HTML', reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith('platform_'))
-def handle_platform(call):
-    user_id = call.from_user.id
-    platform = 'Telegram' if call.data == 'platform_telegram' else 'VK'
-    user_data[user_id]['platform'] = platform
-    user_states[user_id] = 'awaiting_story_link'
     
-    bot.edit_message_text(f"<b>✅ Соцсеть:</b> {platform}\n\n"
-                          f"🔗 <b>Шаг 3/4: Отправьте ссылку на сторис:</b>",
-                          chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode='HTML')
-
-@bot.message_handler(func=lambda message: user_states.get(message.from_user.id) == 'awaiting_story_link')
-def handle_story_link(message):
-    user_id = message.from_user.id
-    story_link = message.text.strip()
-    
-    if not (story_link.startswith('http://') or story_link.startswith('https://')):
-        bot.send_message(message.chat.id, "❗️ Отправьте корректную ссылку (с http:// или https://):")
-        return
-    
-    user_data[user_id]['story_link'] = story_link
-    user_states[user_id] = 'awaiting_screenshot'
-    bot.send_message(message.chat.id, "📸 <b>Шаг 4/4: Отправьте скриншот вашей выложенной сторис (фото):</b>", parse_mode='HTML')
-
-@bot.message_handler(content_types=['photo'], func=lambda message: user_states.get(message.from_user.id) == 'awaiting_screenshot')
-def handle_screenshot(message):
-    user_id = message.from_user.id
-    username = user_data[user_id]['username']
-    platform = user_data[user_id]['platform']
-    story_link = user_data[user_id]['story_link']
-    reg_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-    try:
-        next_row = len(sheet.col_values(1)) + 1
-        row_data = [str(user_id), username, platform, story_link, reg_date, '⏳', '']
-        sheet.update(f'A{next_row}:G{next_row}', [row_data])
-        
-        bot.send_message(
-            message.chat.id,
-            "🎉 <b>Мы получили вашу заявку!</b>\n\n"
-            "Мы проверим вашу сторис (на это уйдет не больше 5 часов).\n"
-            "Узнать успешно ли прошла регистрация можно нажав на кнопку «🏆 Проверить результат».\n\n"
-            "Итоги розыгрыша мы выложим в наш телеграм 13, 14 и 15 февраля, во второй половине дня. Проверить ваш статус можно будет так же через кнопку «🏆 Проверить результат».\n\n"
-            "Желаем удачи 💘",
-            parse_mode='HTML',
-            reply_markup=main_menu()
-        )
-        user_states.pop(user_id, None)
-    except Exception as e:
-        bot.send_message(message.chat.id, "❗️ Ошибка сохранения. Попробуйте позже.")
+    bot.send_message(
+        message.chat.id, 
+        text, 
+        parse_mode='HTML', 
+        reply_markup=markup
+    )
 
 # ==================== ПРОВЕРКА РЕЗУЛЬТАТА ====================
 
@@ -195,26 +145,24 @@ def handle_screenshot(message):
 def check_result(message):
     user_id = str(message.from_user.id)
     try:
-        # Принудительно обновляем данные из таблицы
+        # Получаем все данные из таблицы
         all_records = sheet.get_all_values()
+        # Ищем все записи текущего пользователя
         user_entries = [row for row in all_records[1:] if row[0] == user_id]
         
         if not user_entries:
-            bot.send_message(message.chat.id, "Вы еще не зарегистрированы. Нажмите «🎁 Участвую».")
+            bot.send_message(message.chat.id, "Вы еще не зарегистрированы в системе.")
             return
 
-        # Ищем запись, где в столбце G (индекс 6) стоит кубок
+        # Ищем, есть ли среди записей пользователя отметка победителя (столбец G / индекс 6)
         winner_entry = next((row for row in user_entries if len(row) > 6 and row[6] == '🏆'), None)
-        has_rejected = any(len(row) > 5 and row[5] == '❌' for row in user_entries)
-        is_pending = any(len(row) > 5 and row[5] == '⏳' for row in user_entries)
 
         if winner_entry:
-            # Берем название приза из столбца H (индекс 7)
+            # Если победил — берем название приза из столбца H (индекс 7)
             prize_name = winner_entry[7].strip() if len(winner_entry) > 7 and winner_entry[7].strip() else "приз"
             
-            # Кнопка для заполнения формы
             markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton("🎁 Заполнить данные для доставки", url="https://forms.gle/JRkuo6oa3M9LvKUVA"))
+            markup.add(types.InlineKeyboardButton("🎁 Заполнить форму победителя", url="https://forms.gle/JRkuo6oa3M9LvKUVA"))
             markup.add(types.InlineKeyboardButton("📜 Список всех победителей", url="https://wow.prostoapp.ru/fb14_winners"))
 
             bot.send_message(
@@ -226,28 +174,31 @@ def check_result(message):
                 parse_mode='HTML',
                 reply_markup=markup
             )
-        elif has_rejected:
-            bot.send_message(message.chat.id, "⚠️ <b>Ваша заявка отклонена.</b>\n\nПричины могут быть в закрытом профиле, отсутствии отметки или неверном скриншоте. Пожалуйста, исправьте ошибки и зарегистрируйтесь снова.", parse_mode='HTML')
-        elif is_pending:
-            bot.send_message(message.chat.id, "Ваша заявка <b>на модерации</b> ⏳\n\nМы проверяем вашу сторис. Обычно это занимает не больше 5 часов. Пожалуйста, подождите.", parse_mode='HTML')
         else:
-            # Если еще не выиграл, даем ссылку на лендинг, чтобы человек мог посмотреть, кто уже победил
+            # Для всех остальных — ваш новый теплый текст
             markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton("Посмотреть список победителей", url="https://wow.prostoapp.ru/fb14_winners"))
+            markup.add(types.InlineKeyboardButton("✨ Список победителей", url="https://wow.prostoapp.ru/fb14_winners"))
             
-            today = date.today()
-            if today <= date(2026, 2, 15):
-                bot.send_message(
-                    message.chat.id, 
-                    "Спасибо за участие! Розыгрыши проходят каждый день 13, 14 и 15 февраля. Возможно, ваше имя появится в списке уже завтра! 💘",
-                    reply_markup=markup
-                )
-            else:
-                bot.send_message(message.chat.id, "Акция завершена. Спасибо за участие! К сожалению, в этот раз удача улыбнулась другому участнику. Но впереди еще много интересного! ✨", reply_markup=markup)
+            final_text = (
+                "<b>Наш розыгрыш подошел к концу! 💘</b>\n\n"
+                "Спасибо, что провели эти дни с нами. К сожалению, в этот раз удача улыбнулась другим участникам, "
+                "но мы очень просим вас не расстраиваться!\n\n"
+                "Самое главное — у вас уже есть подписка, а значит, лучшие и самые бережные практики для спокойствия "
+                "и гармонии каждый день. И это уже большая победа. Мы не прощаемся: этот розыгрыш точно не последний, "
+                "впереди еще много интересного.\n\n"
+                "Оставайтесь с нами и спасибо, что вы часть Prosto!"
+            )
+            
+            bot.send_message(
+                message.chat.id, 
+                final_text, 
+                parse_mode='HTML', 
+                reply_markup=markup
+            )
                 
     except Exception as e:
         print(f"Ошибка в check_result: {e}")
-        bot.send_message(message.chat.id, "Ошибка при проверке. Попробуйте позже.")
+        bot.send_message(message.chat.id, "Произошла ошибка при проверке данных. Пожалуйста, попробуйте позже.")
 
 # ==================== ЗАПУСК ====================
 if __name__ == '__main__':
